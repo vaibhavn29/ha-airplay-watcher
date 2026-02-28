@@ -1,0 +1,14 @@
+# Accidental path
+https:/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+
+# IDE / OS
+.idea/
+.DS_Store
