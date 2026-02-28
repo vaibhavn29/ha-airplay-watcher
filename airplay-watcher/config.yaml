@@ -1,6 +1,6 @@
 name: "HA AirPlay Watcher"
 description: "Monitors AirPlay devices via mDNS and triggers HA webhooks on playback state changes."
-version: "1.0.2"
+version: "0.0.1"
 slug: "airplay-watcher"
 init: false
 arch:
@@ -11,8 +11,8 @@ arch:
 homeassistant_api: false
 host_network: true
 options:
-  ha_url: "http://192.168.68.68:8123"
-  device_ip: "192.168.68.79"
+  ha_url: "http://homeassistant.local:8123"
+  device_ip: ""
   webhook_playing: "airplay_playing"
   webhook_idle: "airplay_idle"
 schema:

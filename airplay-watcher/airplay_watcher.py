@@ -43,7 +43,8 @@ def parse_status_flags(properties: dict) -> bool:
         sf_str = sf if isinstance(sf, str) else sf.decode()
         val = int(sf_str, 16) if sf_str.startswith('0x') or sf_str.startswith('0X') else int(sf_str)
         log.info(f"  sf raw: {sf_str} → parsed: {val:#x}")
-        return bool(val & 0x4) and not bool(val & 0x800)
+        return bool(val & 0x4)
+
     except (ValueError, AttributeError):
         return False
 
