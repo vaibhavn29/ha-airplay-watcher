@@ -17,10 +17,32 @@ log = logging.getLogger("airplay-watcher")
 HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123")
 WEBHOOK_PLAYING = os.environ.get("WEBHOOK_PLAYING", "")
 WEBHOOK_IDLE = os.environ.get("WEBHOOK_IDLE", "")
-DEVICE_IP = os.environ.get("DEVICE_IP", "")
+_raw_device_ip = os.environ.get("DEVICE_IP", "").strip()
+
+
+def _normalize_device_ip(value: str) -> str:
+    """Extract plain IP/host from device_ip (strip URL scheme or path if present)."""
+    if not value:
+        return ""
+    s = value.strip()
+    for prefix in ("http://", "https://"):
+        if s.lower().startswith(prefix):
+            s = s[len(prefix):]
+            break
+    # Drop trailing path, port, or slash
+    if "/" in s:
+        s = s.split("/", 1)[0]
+    if ":" in s and not s.startswith("["):  # port, not IPv6
+        s = s.split(":")[0]
+    return s.strip() or ""
+
+
+DEVICE_IP = _normalize_device_ip(_raw_device_ip)
 
 # Track last state to avoid duplicate triggers
+# None = not yet initialized, always fire on first reading to sync state
 last_state = None
+last_state_initialized = False
 
 
 def call_webhook(url):
@@ -35,7 +57,15 @@ def call_webhook(url):
 
 
 def parse_status_flags(properties: dict) -> bool:
-    """Return True if device is actively streaming."""
+    """Return True if device is actively streaming.
+    
+    Based on observed values from Belkin Soundform:
+      0x404 = bit 0x4 set, bit 0x800 NOT set = actively streaming
+      0xc04 = bit 0x4 set, bit 0x800 set     = idle/standby
+    
+    Bit 0x4  = active AirPlay session
+    Bit 0x800 = standby/group-idle mode (negates active session)
+    """
     sf = properties.get(b'sf', properties.get('sf', None))
     if sf is None:
         return False
@@ -43,13 +73,14 @@ def parse_status_flags(properties: dict) -> bool:
         sf_str = sf if isinstance(sf, str) else sf.decode()
         val = int(sf_str, 16) if sf_str.startswith('0x') or sf_str.startswith('0X') else int(sf_str)
         log.info(f"  sf raw: {sf_str} → parsed: {val:#x}")
-        return bool(val & 0x4)
-
+        # Must have active session bit AND must NOT have standby bit
+        return bool(val & 0x4) and not bool(val & 0x800)
     except (ValueError, AttributeError):
         return False
 
+
 def on_service_state_change(zeroconf, service_type, name, state_change):
-    global last_state
+    global last_state, last_state_initialized
 
     # Only use RAOP record for state — it's the authoritative audio stream indicator
     if "_airplay._tcp" in service_type:
@@ -82,11 +113,13 @@ def on_service_state_change(zeroconf, service_type, name, state_change):
     is_playing = parse_status_flags(info.properties)
     state_str = "PLAYING" if is_playing else "IDLE"
 
-    if state_str == last_state:
+    # Always fire on first reading to sync state correctly on startup
+    if state_str == last_state and last_state_initialized:
         log.info(f"  State unchanged ({state_str}), skipping webhook.")
         return
 
     last_state = state_str
+    last_state_initialized = True
     log.info(f"  → State changed to: {state_str}")
 
     if is_playing:
