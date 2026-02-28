@@ -58,11 +58,11 @@ def parse_status_flags(properties: dict) -> bool:
     """Return True if device is actively streaming.
 
     Observed values from Belkin Soundform:
-      0x404 = bit 0x4 set, bit 0x800 NOT set = actively streaming
-      0xc04 = bit 0x4 set, bit 0x800 set     = idle/standby
+      0x404 = IDLE (no stream)
+      0xc04 = PLAYING (active stream)
 
-    Bit 0x4   = active AirPlay session
-    Bit 0x800 = standby/group-idle (negates active session)
+    Bit 0x800 = active AirPlay session (confirmed from device observations)
+    Bit 0x4   = device powered on (always set when device is on)
     """
     sf = properties.get(b'sf', properties.get('sf', None))
     if sf is None:
@@ -71,7 +71,7 @@ def parse_status_flags(properties: dict) -> bool:
         sf_str = sf if isinstance(sf, str) else sf.decode()
         val = int(sf_str, 16) if sf_str.lower().startswith('0x') else int(sf_str)
         log.info(f"  sf raw: {sf_str} → parsed: {val:#x}")
-        return bool(val & 0x4) and not bool(val & 0x800)
+        return bool(val & 0x800)
     except (ValueError, AttributeError):
         return False
 

@@ -1,6 +1,6 @@
 name: "HA AirPlay Watcher"
 description: "Monitors AirPlay devices via mDNS and triggers HA webhooks on playback state changes."
-version: "0.0.3"
+version: "0.0.4"
 slug: "airplay-watcher"
 init: false
 arch:
