@@ -6,7 +6,16 @@ Monitors your AirPlay device via mDNS and fires HA webhooks when playback starts
 
 ## Installation
 
-### Step 1 — Copy add-on to your Pi
+### Option A — Add this repository (recommended)
+
+1. Go to **Settings → Add-ons → Add-on Store**
+2. Click the **3-dot menu** (top right) → **Add repository**
+3. Enter: `https://github.com/vaibhavn29/ha-airplay-watcher`
+4. Click **Add** → **Close**
+5. Refresh the Add-on Store (3-dot menu → **Check for updates** if needed)
+6. Find **AirPlay Watcher** under the new repo and click **Install**
+
+### Option B — Local install (copy to your Pi)
 
 Copy the `airplay-watcher` folder to your HA addons directory:
 
@@ -19,7 +28,7 @@ Via SSH/SCP:
 scp -r airplay-watcher/ root@<your-pi-ip>:/usr/share/hassio/addons/local/
 ```
 
-### Step 2 — Install in HA
+Then in HA:
 
 1. Go to **Settings → Add-ons → Add-on Store**
 2. Click the 3-dot menu (top right) → **Check for updates**
