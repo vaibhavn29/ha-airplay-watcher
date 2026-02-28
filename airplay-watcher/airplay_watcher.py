@@ -29,10 +29,9 @@ def _normalize_device_ip(value: str) -> str:
         if s.lower().startswith(prefix):
             s = s[len(prefix):]
             break
-    # Drop trailing path, port, or slash
     if "/" in s:
         s = s.split("/", 1)[0]
-    if ":" in s and not s.startswith("["):  # port, not IPv6
+    if ":" in s and not s.startswith("["):
         s = s.split(":")[0]
     return s.strip() or ""
 
@@ -40,8 +39,7 @@ def _normalize_device_ip(value: str) -> str:
 DEVICE_IP = _normalize_device_ip(_raw_device_ip)
 
 # Track last state to avoid duplicate triggers
-# None = not yet initialized, always fire on first reading to sync state
-last_state = None
+last_state = None          # None = not yet initialized
 last_state_initialized = False
 
 
@@ -58,22 +56,21 @@ def call_webhook(url):
 
 def parse_status_flags(properties: dict) -> bool:
     """Return True if device is actively streaming.
-    
-    Based on observed values from Belkin Soundform:
+
+    Observed values from Belkin Soundform:
       0x404 = bit 0x4 set, bit 0x800 NOT set = actively streaming
       0xc04 = bit 0x4 set, bit 0x800 set     = idle/standby
-    
-    Bit 0x4  = active AirPlay session
-    Bit 0x800 = standby/group-idle mode (negates active session)
+
+    Bit 0x4   = active AirPlay session
+    Bit 0x800 = standby/group-idle (negates active session)
     """
     sf = properties.get(b'sf', properties.get('sf', None))
     if sf is None:
         return False
     try:
         sf_str = sf if isinstance(sf, str) else sf.decode()
-        val = int(sf_str, 16) if sf_str.startswith('0x') or sf_str.startswith('0X') else int(sf_str)
+        val = int(sf_str, 16) if sf_str.lower().startswith('0x') else int(sf_str)
         log.info(f"  sf raw: {sf_str} → parsed: {val:#x}")
-        # Must have active session bit AND must NOT have standby bit
         return bool(val & 0x4) and not bool(val & 0x800)
     except (ValueError, AttributeError):
         return False
@@ -82,7 +79,7 @@ def parse_status_flags(properties: dict) -> bool:
 def on_service_state_change(zeroconf, service_type, name, state_change):
     global last_state, last_state_initialized
 
-    # Only use RAOP record for state — it's the authoritative audio stream indicator
+    # Only use RAOP record — it's the authoritative audio stream indicator
     if "_airplay._tcp" in service_type:
         return
 
@@ -102,7 +99,7 @@ def on_service_state_change(zeroconf, service_type, name, state_change):
 
     # Filter by device IP if configured
     if DEVICE_IP:
-        addresses = [socket_addr for socket_addr in info.parsed_addresses()]
+        addresses = info.parsed_addresses()
         if DEVICE_IP not in addresses:
             return
 
@@ -113,13 +110,25 @@ def on_service_state_change(zeroconf, service_type, name, state_change):
     is_playing = parse_status_flags(info.properties)
     state_str = "PLAYING" if is_playing else "IDLE"
 
-    # Always fire on first reading to sync state correctly on startup
-    if state_str == last_state and last_state_initialized:
+    if not last_state_initialized:
+        # Startup: silently record current state, only fire webhook if PLAYING
+        # Avoids triggering IDLE automation on every add-on restart
+        last_state = state_str
+        last_state_initialized = True
+        log.info(f"  → Initial state on startup: {state_str}")
+        if is_playing:
+            log.info("  Device is already playing on startup, firing PLAYING webhook.")
+            call_webhook(f"{HA_URL}/api/webhook/{WEBHOOK_PLAYING}")
+        else:
+            log.info("  Device is idle on startup, not firing any webhook.")
+        return
+
+    # Normal operation — only fire on genuine state changes
+    if state_str == last_state:
         log.info(f"  State unchanged ({state_str}), skipping webhook.")
         return
 
     last_state = state_str
-    last_state_initialized = True
     log.info(f"  → State changed to: {state_str}")
 
     if is_playing:
@@ -137,7 +146,6 @@ def main():
 
     zeroconf = Zeroconf()
 
-    # Watch both AirPlay and RAOP (AirPlay audio) service types
     browser_raop = ServiceBrowser(zeroconf, "_raop._tcp.local.", handlers=[on_service_state_change])
     browser_airplay = ServiceBrowser(zeroconf, "_airplay._tcp.local.", handlers=[on_service_state_change])
 
