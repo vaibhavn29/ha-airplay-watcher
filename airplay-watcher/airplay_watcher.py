@@ -36,14 +36,14 @@ def call_webhook(url):
 
 def parse_status_flags(properties: dict) -> bool:
     """Return True if device is actively streaming."""
-    # RAOP TXT record uses 'sf' for status flags
     sf = properties.get(b'sf', properties.get('sf', None))
     if sf is None:
         return False
     try:
-        val = int(sf if isinstance(sf, str) else sf.decode())
-        # sf=4 means active session, sf=0 means idle
-        return val != 0
+        sf_str = sf if isinstance(sf, str) else sf.decode()
+        val = int(sf_str, 16) if sf_str.startswith('0x') or sf_str.startswith('0X') else int(sf_str)
+        log.info(f"  sf raw: {sf_str} → parsed: {val:#x}")
+        return bool(val & 0x4) and not bool(val & 0x800)
     except (ValueError, AttributeError):
         return False
 
