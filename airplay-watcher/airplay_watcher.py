@@ -47,9 +47,12 @@ def parse_status_flags(properties: dict) -> bool:
     except (ValueError, AttributeError):
         return False
 
-
 def on_service_state_change(zeroconf, service_type, name, state_change):
     global last_state
+
+    # Only use RAOP record for state — it's the authoritative audio stream indicator
+    if "_airplay._tcp" in service_type:
+        return
 
     if state_change not in (ServiceStateChange.Added, ServiceStateChange.Updated):
         return
